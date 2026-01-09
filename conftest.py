@@ -1,64 +1,63 @@
-# conftest.py
+import allure
 import pytest
+
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 
 from helpers.api_helpers import StellarBurgersAPI
 from helpers.user_factory import make_user
-
-
-def pytest_addoption(parser):
-    parser.addoption("--headless", action="store_true", default=False)
-
+from data.urls import API_ENDPOINTS
 
 @pytest.fixture(params=["chrome", "firefox"])
-def driver(request):
-    headless = request.config.getoption("--headless")
+def browser(request):
+    return request.param
 
-    if request.param == "chrome":
+@pytest.fixture
+def driver(browser):
+    drv = None
+    if browser == "chrome":
         options = ChromeOptions()
-        if headless:
-            options.add_argument("--headless=new")
         options.add_argument("--window-size=1280,900")
         drv = webdriver.Chrome(options=options)
     else:
         options = FirefoxOptions()
-        if headless:
-            options.add_argument("-headless")
+        options.add_argument("--width=1280")
+        options.add_argument("--height=900")
         drv = webdriver.Firefox(options=options)
 
-    drv.implicitly_wait(0)
     yield drv
-    try:
-        drv.quit()
-    except Exception:
-        pass
-
-
-@pytest.fixture()
-def authorized():
-    """
-    Создаёт пользователя через API и отдаёт креды.
-    После теста удаляет пользователя.
-    """
-    api = StellarBurgersAPI()
-    user = make_user()
-
-    r = api.register_user(user)
-    if r.status_code != 200:
-        # если вдруг уже есть, попробуем логин
-        r2 = api.login_user(user["email"], user["password"])
-        if r2.status_code != 200:
-            raise RuntimeError(f"Не удалось создать/залогинить пользователя: {r.text} / {r2.text}")
-        token = r2.json().get("accessToken")
-    else:
-        token = r.json().get("accessToken")
-
-    yield user
-
-    if token:
+    with allure.step("Закрываем браузер"):
         try:
-            api.delete_user(token)
+            drv.quit()
         except Exception:
             pass
+
+@pytest.fixture
+def authorized():
+    """Создаёт пользователя через API. Возвращает dict с access_token + данными пользователя."""
+    api = StellarBurgersAPI()
+    user = make_user()
+    data = api.register_user(user)
+    access_token = data.get("accessToken")
+    yield {"user": user, "access_token": access_token}
+
+    if access_token:
+        api.delete_user(access_token)
+
+@pytest.fixture
+def order_number(authorized):
+    """Создаёт заказ через API и возвращает его номер (без ведущих нулей)."""
+    api = StellarBurgersAPI()
+    access_token = authorized["access_token"]
+
+    ingredients = api.get_ingredients()
+    ids = []
+    # берём 2 любых ингредиента
+    for item in (ingredients.get("data") or [])[:2]:
+        if item.get("_id"):
+            ids.append(item["_id"])
+
+    order = api.create_order(access_token, ids)
+    num = str(order.get("order", {}).get("number", "")).strip()
+    return num

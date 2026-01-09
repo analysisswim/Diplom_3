@@ -1,15 +1,14 @@
 from selenium.webdriver.common.by import By
 
-
 class IngredientModalLocators:
-    MODAL = (By.XPATH, "//*[contains(@class,'Modal_modal__container') or contains(@class,'Modal_modal__contentBox')]")
-    TITLE = (By.XPATH, "//*[contains(@class,'Modal_modal__title') and contains(.,'Детали ингредиента')]")
+    MODAL = (By.CSS_SELECTOR, "section.Modal_modal__P3_V5")
+    TITLE = (By.XPATH, "//section[contains(@class,'Modal_modal')]//h2")
+    CLOSE_BUTTON = (By.CSS_SELECTOR, "button.Modal_modal__close_modified__3V5XS")
 
-    # НЕ по точному @class=..., а через contains(@class,...)
-    NAME = (By.XPATH, "//*[contains(@class,'Modal_modal__container') or contains(@class,'Modal_modal__contentBox')]"
-                    "//p[contains(@class,'text_type_main-medium')]")
-
-    IMAGE = (By.XPATH, "//*[contains(@class,'Modal_modal__container') or contains(@class,'Modal_modal__contentBox')]//img")
-
-    # Кликать именно по кнопке, не по svg/внутренностям
-    CLOSE_BUTTON = (By.XPATH, "//button[contains(@class,'Modal_modal__close')]")
+    # ✅ Имя ингредиента (самый стабильный вариант)
+    INGREDIENT_NAME = (
+        By.XPATH,
+        "//section[contains(@class,'Modal_modal')]"
+        "//div[contains(@class,'Modal_modal__container')]"
+        "//p[contains(@class,'text_type_main-medium')][1]"
+    )

@@ -1,70 +1,88 @@
-# pages/base_page.py
+import allure
+
+from typing import Optional, Callable, Any
+
+from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import (
-    ElementClickInterceptedException,
-    StaleElementReferenceException,
-    TimeoutException,
-)
+
 
 class BasePage:
-    def __init__(self, driver, timeout: int = 10):
+    def __init__(self, driver: WebDriver, timeout: int = 10):
         self.driver = driver
         self.timeout = timeout
 
+    @allure.step("Открываем страницу: {url}")
     def open(self, url: str):
         self.driver.get(url)
 
-    def wait_visible(self, locator, timeout=None):
+    @allure.step("Ожидаем, что элемент видим: {locator}")
+    def wait_visible(self, locator, timeout: Optional[int] = None):
         return WebDriverWait(self.driver, timeout or self.timeout).until(
             EC.visibility_of_element_located(locator)
         )
 
-    def wait_clickable(self, locator, timeout=None):
+    @allure.step("Ожидаем, что элемент кликабелен: {locator}")
+    def wait_clickable(self, locator, timeout: Optional[int] = None):
         return WebDriverWait(self.driver, timeout or self.timeout).until(
             EC.element_to_be_clickable(locator)
         )
 
-    def js_click(self, element):
-        self.driver.execute_script("arguments[0].click();", element)
+    @allure.step("Кликаем по элементу: {locator}")
+    def click(self, locator, timeout: Optional[int] = None):
+        el = self.wait_clickable(locator, timeout=timeout)
+        el.click()
+        return el
 
-    def click(self, locator, timeout=None):
-        el = self.wait_clickable(locator, timeout)
-        # центрируем элемент (часто помогает Firefox)
-        self.driver.execute_script(
-            "arguments[0].scrollIntoView({block:'center', inline:'center'});", el
-        )
-        try:
-            el.click()
-        except (ElementClickInterceptedException, StaleElementReferenceException):
-            el = self.driver.find_element(*locator)
-            self.js_click(el)
+    @allure.step("JS-клик по элементу: {locator}")
+    def js_click(self, locator, timeout: Optional[int] = None):
+        el = self.wait_visible(locator, timeout=timeout)
+        self.driver.execute_script("arguments[0].click();", el)
+        return el
 
-    def is_visible(self, locator, timeout=3) -> bool:
+    @allure.step("Ищем все элементы: {locator}")
+    def find_elements(self, locator):
+        return self.driver.find_elements(*locator)
+
+    @allure.step("Проверяем, что элемент видим: {locator}")
+    def is_visible(self, locator, timeout: Optional[int] = None) -> bool:
         try:
             self.wait_visible(locator, timeout=timeout)
             return True
-        except TimeoutException:
+        except Exception:
             return False
 
-    def wait_until(self, condition, timeout=None):
+    @allure.step("Ожидаем условие")
+    def wait_until(self, condition: Callable[[Any], Any], timeout: Optional[int] = None):
         return WebDriverWait(self.driver, timeout or self.timeout).until(condition)
 
-    def wait_for_url_contains(self, part: str, timeout=10) -> bool:
-        try:
-            WebDriverWait(self.driver, timeout).until(EC.url_contains(part))
-            return True
-        except TimeoutException:
-            return False
-
-    def scroll_into_view(self, element):
-        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", element)
-
-    def wait_invisible(self, locator, timeout=None):
+    @allure.step("Ожидаем, что элемент исчез: {locator}")
+    def wait_invisible(self, locator, timeout: Optional[int] = None) -> bool:
         return WebDriverWait(self.driver, timeout or self.timeout).until(
             EC.invisibility_of_element_located(locator)
         )
 
+    @allure.step("Ждём, что URL содержит: {part}")
+    def wait_for_url_contains(self, part: str, timeout: Optional[int] = None) -> bool:
+        try:
+            WebDriverWait(self.driver, timeout or self.timeout).until(EC.url_contains(part))
+            return True
+        except Exception:
+            return False
+
+    @allure.step("Скроллим к элементу")
+    def scroll_into_view(self, element):
+        self.driver.execute_script(
+            "arguments[0].scrollIntoView({block:'center'});", element
+        )
+
+    @allure.step("Drag&Drop элемента в цель")
+    def drag_and_drop(self, source, target):
+        actions = ActionChains(self.driver)
+        actions.click_and_hold(source).move_to_element(target).pause(0.2).release().perform()
+
+    @allure.step("HTML5 drag&drop")
     def html5_drag_and_drop(self, source, target):
         js = """
         const source = arguments[0];
