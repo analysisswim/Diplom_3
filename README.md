@@ -1,4 +1,4 @@
-## Diplom_3 UI tests (Stellar Burgers)
+## Задание 3. Автотесты для UI
 
 ### Install
 python -m venv .venv
